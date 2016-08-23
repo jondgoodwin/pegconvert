@@ -31,6 +31,7 @@ float yorigin = -1.0;	// Where to translate y coordinates. <0 unchanged. 0 at bo
 float height = -1.0;	// Total height of converted mesh. <0 unchanged.
 float ydelta = 0.0;		// Calculated change to y before scaling
 float scale = 1.0;		// Calculated scaling factor
+int uvdim = 2;			// Number of uv dimensions to generate (2/3)
 
 /** Information about contents of a loaded source file */
 struct FileInfo {
@@ -379,13 +380,16 @@ void genobj2acorn(char *fn) {
 	}
 
 	// Build "uv" vertices
-	if (objnvertnorm>0) {
-		fputs("\tuvs: +Xyzs\"\n", acn);
+	if (objnverttex>0) {
+		fputs(uvdim==3? "\tuvs: +Xyzs\"\n" : "\tuvs: +Uvs\"\n", acn);
 		lastcomma = ",";
 		for (int i=0; i<nmaps; i++) {
 			if (i==nmaps-1) lastcomma="\"";
-			float *f = &objverttex[3*((&mapidx[i])->vn-1)];
-			fprintf(acn, "\t\t%f,%f,%f%s\n", f[0], f[1], f[2], lastcomma);
+			float *f = &objverttex[3*((&mapidx[i])->vt-1)];
+			if (uvdim==3)
+				fprintf(acn, "\t\t%f,%f,%f%s\n", f[0], f[1], f[2], lastcomma);
+			else
+				fprintf(acn, "\t\t%f,%f%s\n", f[0], f[1], lastcomma);
 		}
 	}
 
@@ -404,6 +408,7 @@ int main(int argc, char* argv[])
 		puts("  -rotate:##       degrees clockwise to rotate model looking down from top");
 		puts("  -origin:bottom   translate model so that 0,0,0 is set to center x,z and bottom y");
 		puts("  -height:###      scale evenly so that model's total height (#) is as specified");
+		puts("  -uv:###          How many uv values (2 or 3)");
 		return 1;
 	}
 
@@ -416,6 +421,7 @@ int main(int argc, char* argv[])
 	yrotation = 0.0;
 	yorigin = -1.0;
 	height = -1.0;
+	uvdim = 2;
 	for (int i=3; i<argc; i++) {
 		struct FileInfo arg;
 		arg.ptr = argv[i];
@@ -425,6 +431,8 @@ int main(int argc, char* argv[])
 			yorigin=0.0;
 		else if (match(&arg, "-height:"))
 			height = getfloat(&arg);
+		else if (match(&arg, "-uv:"))
+			uvdim = getint(&arg);
 	}
 
 	// Scan for count, scan to get data, then generate
