@@ -2,21 +2,31 @@
  * @file
  *
  * This source file is part of the Pegasus3d Converter.
- * Copyright (C) 2016  Jonathan Goodwin
+ * Copyright (C) 2017  Jonathan Goodwin
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ * Permission is hereby granted, free of charge, to any
+ * person obtaining a copy of this software and associated
+ * documentation files (the "Software"), to deal in the
+ * Software without restriction, including without
+ * limitation the rights to use, copy, modify, merge,
+ * publish, distribute, sublicense, and/or sell copies of
+ * the Software, and to permit persons to whom the Software
+ * is furnished to do so, subject to the following
+ * conditions:
+
+ * The above copyright notice and this permission notice
+ * shall be included in all copies or substantial portions
+ * of the Software.
+
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ * ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+ * TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+ * SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+ * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+ * IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
 */
 
 #include <stdio.h>
@@ -27,9 +37,13 @@
 
 // Parameters affecting transformation of vertex positions as needed for converted mesh
 float yrotation = 0.0;	// How much to rotate converted mesh around y-axis clockwise as looking down from on top
+float xorigin = -1.0;	// Where to translate x coordinates. <0 unchanged. 0 at bottom, 0.5 in center, 1 at top
 float yorigin = -1.0;	// Where to translate y coordinates. <0 unchanged. 0 at bottom, 0.5 in center, 1 at top
+float zorigin = -1.0;	// Where to translate z coordinates. <0 unchanged. 0 at bottom, 0.5 in center, 1 at top
 float height = -1.0;	// Total height of converted mesh. <0 unchanged.
+float xdelta = 0.0;		// Calculated change to x before scaling
 float ydelta = 0.0;		// Calculated change to y before scaling
+float zdelta = 0.0;		// Calculated change to z before scaling
 float scale = 1.0;		// Calculated scaling factor
 int uvdim = 2;			// Number of uv dimensions to generate (2/3)
 
@@ -267,8 +281,12 @@ int parseobj(FileInfo* obj, bool cnt) {
 		printf("Mins (%f, %f, %f) to Maxs (%f, %f, %f)\n", minx, miny, minz, maxx, maxy, maxz);
 		if (height>0.0)
 			scale = height/(maxy-miny);
+		if (xorigin>=0.0)
+			xdelta = -(xorigin*(maxx-minx)+minx);
 		if (yorigin>=0.0)
 			ydelta = -(yorigin*(maxy-miny)+miny);
+		if (zorigin>=0.0)
+			zdelta = -(zorigin*(maxz-minz)+minz);
 	}
 	return 1;
 }
@@ -303,9 +321,9 @@ struct Xyz {
 
 /** Convert original file's xyz position to requested local space */
 void convertPosition(struct Xyz *newxyz, struct Xyz *oldxyz) {
-	newxyz->x = oldxyz->x*scale*cos(yrotation) - oldxyz->z*scale*sin(yrotation);
+	newxyz->x = (oldxyz->x+xdelta)*scale*cos(yrotation) - (oldxyz->z+zdelta)*scale*sin(yrotation);
 	newxyz->y = (oldxyz->y+ydelta)*scale;
-	newxyz->z = oldxyz->z*scale*cos(yrotation) + oldxyz->x*scale*sin(yrotation);
+	newxyz->z = (oldxyz->z+zdelta)*scale*cos(yrotation) + (oldxyz->x+xdelta)*scale*sin(yrotation);
 }
 
 /** Convert original file's normals to requested local space */
@@ -407,6 +425,7 @@ int main(int argc, char* argv[])
 		puts("Available options after both file names:");
 		puts("  -rotate:##       degrees clockwise to rotate model looking down from top");
 		puts("  -origin:bottom   translate model so that 0,0,0 is set to center x,z and bottom y");
+		puts("  -origin:center   translate model so that 0,0,0 is set to center x,y,z");
 		puts("  -height:###      scale evenly so that model's total height (#) is as specified");
 		puts("  -uv:###          How many uv values (2 or 3)");
 		return 1;
@@ -428,7 +447,9 @@ int main(int argc, char* argv[])
 		if (match(&arg, "-rotate:"))
 			yrotation = (float)M_PI * getfloat(&arg)/180.f;
 		else if (match(&arg, "-origin:bottom"))
-			yorigin=0.0;
+			{yorigin=0.0; xorigin=0.5; zorigin=0.5;}
+		else if (match(&arg, "-origin:center"))
+			{xorigin=0.5; yorigin=0.5; zorigin=0.5;}
 		else if (match(&arg, "-height:"))
 			height = getfloat(&arg);
 		else if (match(&arg, "-uv:"))
